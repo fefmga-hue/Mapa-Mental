@@ -311,6 +311,11 @@ html[data-theme=light] .themebtn{background:#fff;color:#2a6df0;box-shadow:0 3px 
 .sh-head .mini.m4 span{font-size:8.5px}
 @media(min-width:900px){#sheet{height:100vh}}
 
+
+.chint{min-height:0;margin-top:5px;font-size:11.5px;color:var(--cy);letter-spacing:.02em}
+.cap select.err{border-color:#ff4d6d;box-shadow:0 0 0 2px rgba(255,77,109,.35)}
+.rm.arm,.act button.arm{background:#ff4d6d;color:#fff;border-radius:999px;width:auto;padding:0 9px;font-size:11.5px;font-weight:700}
+.it .erow{margin-top:6px}
 /* ===== MODO CLARO ===== */
 html[data-theme=light]{
   --bg1:#f4f6fb; --bg2:#ffffff; --bg3:#e8edf8; --ink:#14213d; --mut:#5d6f93; --line:rgba(50,80,150,.17);
@@ -639,7 +644,11 @@ const save = () => { try{ localStorage.setItem('mme-v1', JSON.stringify(L)); }ca
 const CHK=['andamento','pendencias','acertos'];
 function items(c, k){
   const all=kk=>{
-    const base=(c[kk]||[]).map((it,i)=>({...it, id:`${c.id}.${kk}.${i}`, ok:kk}));
+    const base=[];
+    (c[kk]||[]).forEach((it,i)=>{ const id=`${c.id}.${kk}.${i}`;
+      if(L.del&&L.del[id]===it.t) return;                              /* apagado neste aparelho */
+      const ov=L.ov&&L.ov[id], ed=!!(ov&&ov.o===it.t);                 /* editado neste aparelho (só vale se o original não mudou) */
+      base.push({...it, id, ok:kk, o:it.t, off:true, t:ed?ov.t:it.t, edited:ed}); });
     const ex=((L.extra[c.id]||{})[kk]||[]).filter(it=>(+String(it.id).slice(1)||0)>ABSORBED).map(it=>({...it, extra:true, ok:kk}));
     return base.concat(ex);
   };
@@ -647,6 +656,21 @@ function items(c, k){
   if(k==='feito') return all('feito').concat(CHK.flatMap(kk=>all(kk).filter(i=>L.done[i.id])
     .map(i=>({...i, reopen:true, d:(typeof L.done[i.id]==='string'?L.done[i.id]:i.d)}))));
   return all(k);
+}
+function editItem(cid,it,t){
+  if(it.extra){ const x=((L.extra[cid]||{})[it.ok]||[]).find(i=>i.id===it.id); if(x) x.t=t; }
+  else { L.ov=L.ov||{}; L.ov[it.id]={o:it.o,t}; }
+  save();
+}
+function delItem(cid,it){
+  if(it.extra){ L.extra[cid][it.ok]=L.extra[cid][it.ok].filter(i=>i.id!==it.id); }
+  else { L.del=L.del||{}; L.del[it.id]=it.o; }
+  delete L.done[it.id]; save();
+}
+function armDel(b,fn){
+  if(b.dataset.arm){ fn(); return; }
+  b.dataset.arm=1; const o=b.textContent; b.textContent='Apagar?'; b.classList.add('arm');
+  setTimeout(()=>{ if(b.isConnected){ delete b.dataset.arm; b.textContent=o; b.classList.remove('arm'); } },2600);
 }
 const open_ = (c,k) => items(c,k).filter(i=>!L.done[i.id]);
 function tier(c){ return c.pct>=10?'Conta A · Estratégica':c.pct>=4?'Conta B · Importante':'Conta C · Em desenvolvimento'; }
@@ -802,7 +826,7 @@ function drawSheet(){
     if(!list.length) h+=`<div class="empty">${EMPTY[S.k]}</div>`;
     list.forEach(it=>{
       h+=`<div class="it ${S.chk&&L.done[it.id]?'dn':''}">${S.chk?`<button class="ck" data-ck="${it.id}" aria-label="Concluir">${L.done[it.id]?'✓':''}</button>`:''}
-        <div class="tx">${esc(it.t)}</div>${it.reopen?`${it.d?`<span class="pr p3">${esc(it.d)}</span>`:''}<button class="rm" data-reopen="${it.id}" aria-label="Reabrir" title="Reabrir">↩</button>`:(it.p?`<span class="pr p${it.p}">${PL[it.p]}</span>`:'')}${it.extra?`<button class="rm" data-rm="${it.ok||S.k}|${it.id}" aria-label="Remover">×</button>`:''}</div>`;
+        <div class="tx">${esc(it.t)}</div>${it.reopen?`${it.d?`<span class="pr p3">${esc(it.d)}</span>`:''}<button class="rm" data-reopen="${it.id}" aria-label="Reabrir" title="Reabrir">↩</button>`:(it.p?`<span class="pr p${it.p}">${PL[it.p]}</span>`:'')}<button class="rm" data-ed2="${it.id}" aria-label="Editar">✎</button><button class="rm" data-dl2="${it.id}" aria-label="Apagar">🗑</button></div>`;
     });
     if(adding===S.k){
       h+=`<div class="addf"><input id="ai" placeholder="Escreva ou dite..." maxlength="300"><button class="mic" id="am" type="button" aria-label="Ditar">🎙️</button><select id="ap"><option value="1">Alta</option><option value="2" selected>Média</option><option value="3">Baixa</option></select><button class="ok" data-save="${S.k}">Salvar</button></div>`;
@@ -822,8 +846,14 @@ function drawSheet(){
   sh.querySelectorAll('[data-save]').forEach(b=>b.onclick=()=>saveItem(b.dataset.save));
   const am=$('#am'); if(am) mic(am,$('#ai'));
   const ai=$('#ai'); if(ai) ai.onkeydown=e=>{if(e.key==='Enter')saveItem(adding);};
-  sh.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{const [k,id]=b.dataset.rm.split('|');
-    L.extra[cur][k]=L.extra[cur][k].filter(x=>x.id!==id); delete L.done[id]; save(); drawSheet(); refresh();});
+  const findIt=id=>SECTIONS.flatMap(S=>items(c,S.k)).find(i=>i.id===id);
+  sh.querySelectorAll('[data-dl2]').forEach(b=>b.onclick=()=>armDel(b,()=>{ const it=findIt(b.dataset.dl2); if(it){ delItem(cur,it); drawSheet(); refresh(); } }));
+  sh.querySelectorAll('[data-ed2]').forEach(b=>b.onclick=()=>{ const it=findIt(b.dataset.ed2); if(!it) return;
+    const tx=b.closest('.it').querySelector('.tx'); tx.innerHTML=`<textarea class="et">${esc(it.t)}</textarea><div class="erow"><button class="sv">Salvar</button><button class="cn">Cancelar</button></div>`;
+    const ta=tx.querySelector('textarea'); ta.focus(); ta.setSelectionRange(ta.value.length,ta.value.length);
+    tx.querySelector('.cn').onclick=()=>drawSheet();
+    tx.querySelector('.sv').onclick=()=>{ const t=ta.value.trim(); if(!t) return; editItem(cur,it,t); drawSheet(); refresh(); };
+  });
 }
 function saveItem(k){
   const t=($('#ai').value||'').trim(); if(!t) return;
@@ -840,10 +870,41 @@ function mic(btn,input){
     if(on){r.stop();return;}
     r=new SR(); r.lang='pt-BR'; r.interimResults=true; r.continuous=true;
     const base=input.value?input.value+' ':'';
-    r.onresult=e=>{let t='';for(let i=0;i<e.results.length;i++)t+=e.results[i][0].transcript;input.value=base+t;};
+    r.onresult=e=>{let t='';for(let i=0;i<e.results.length;i++)t+=e.results[i][0].transcript;input.value=base+t;input.dispatchEvent(new Event('input'));};
     r.onend=r.onerror=()=>{on=false;btn.classList.remove('rec');};
     try{r.start();on=true;btn.classList.add('rec');}catch(e){}
   };
+}
+
+/* ---------- reconhecer o nome da conta no que foi falado/digitado ---------- */
+const norm=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+const ALIAS=[
+ {id:'scherer',any:['scherer','scherer autopecas'],start:['share','sherer','xerer','cherer','scheler']},
+ {id:'roni',any:['roni','ronie','rony','roney','ronny','roni chaves'],start:[]},
+ {id:'toli',any:['toli','tolli','tolly','toly'],start:['tole']},
+ {id:'pratense',any:['auto pratense','alto pratense','autopratense','auto pratence','pratense','pratence'],start:[]},
+ {id:'giros',any:['giros','jiros'],start:[]},
+ {id:'meridional',any:['meridional'],start:[]},
+ {id:'bodipasa',any:['bodipasa','bodi pasa','bodypasa','bodipassa','body pasa','bodi passa'],start:[]},
+ {id:'ravas',any:['ravas'],start:['havas','rabas']},
+ {id:'climer',any:['climer','climber','clymer','klimer','climar'],start:[]},
+ {id:'refrijet',any:['refrijet','refriget','refrijete','refrigete','refri jet'],start:[]},
+ {id:'hub',any:[],start:['carteira geral','geral','carteira']}
+];
+const LEAD='^\\s*(?:(?:cliente|conta|para|da|do|de|na|no|sobre|a|o)\\s+){0,2}';
+function findClient(text){
+  const n=norm(text); let best=null;
+  ALIAS.forEach(a=>{
+    a.any.forEach(w=>{ const m=new RegExp('(^|[^a-z0-9])'+w+'(?![a-z0-9])').exec(n); if(m){ const i=m.index+m[1].length; if(!best||i<best.i) best={id:a.id,i}; } });
+    a.start.forEach(w=>{ if(new RegExp(LEAD+w+'(?![a-z0-9])').test(n)) best={id:a.id,i:0}; });
+  });
+  return best;
+}
+function stripLead(text,id){            /* "Roni: levar proposta" -> "Levar proposta" (só quando há : , ou - depois do nome) */
+  const a=ALIAS.find(x=>x.id===id); if(!a) return text;
+  const names=a.any.concat(a.start).join('|'); const n=norm(text);
+  const m=new RegExp(LEAD+'(?:'+names+')\\s*[:,;\\-–]\\s*').exec(n);
+  if(!m) return text; const r=text.slice(m[0].length).trim(); return r?r.charAt(0).toUpperCase()+r.slice(1):text;
 }
 
 /* ---------- pensamentos e ideias ---------- */
@@ -852,7 +913,7 @@ const TL={objetivos:'Objetivo',andamento:'Em andamento',pendencias:'Pendente',ac
 function allThoughts(){
   const out=[];
   CLIENTS.concat([HUB]).forEach(c=>SECTIONS.forEach(S=>items(c,S.k).forEach(it=>{
-    out.push({c,k:S.k,id:it.id,extra:!!it.extra,reopen:!!it.reopen,ok:it.ok||S.k,t:it.t,d:it.d,p:S.k==='feito'?0:(it.p||2),done:S.k==='feito'||!!L.done[it.id]});
+    out.push({c,k:S.k,id:it.id,extra:!!it.extra,off:!!it.off,o:it.o,reopen:!!it.reopen,ok:it.ok||S.k,t:it.t,d:it.d,p:S.k==='feito'?0:(it.p||2),done:S.k==='feito'||!!L.done[it.id]});
   })));
   return out;
 }
@@ -866,8 +927,8 @@ function drawIdeas(){
     <div class="fl"><select id="icl"><option value="all">Todos os clientes</option>${CLIENTS.map(c=>`<option value="${c.id}" ${icl===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}<option value="hub" ${icl==='hub'?'selected':''}>Carteira (geral)</option></select>
     <div class="seg">${[['all','Todos'],['open','Abertos'],['done','✔ Feitos']].map(([v,l])=>`<button data-s="${v}" class="${ist===v?'on':''}">${l}</button>`).join('')}</div></div>
   </div><div class="sh-body"><div class="cap" id="cap" style="display:${capOpen?'block':'none'}">
-    <textarea id="ct" placeholder="Escreva ou toque no microfone e fale..."></textarea>
-    <div class="row"><select id="cc">${CLIENTS.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}<option value="hub">Carteira (geral)</option></select>
+    <textarea id="ct" placeholder="Escreva ou toque no microfone e fale... Dica: comece dizendo o nome da conta, ex.: &quot;Roni: levar proposta de ATX&quot;"></textarea><div class="chint" id="chint"></div>
+    <div class="row"><select id="cc"><option value="" ${icl==='all'?'selected':''} disabled>Escolha a conta…</option>${CLIENTS.map(c=>`<option value="${c.id}" ${icl===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}<option value="hub" ${icl==='hub'?'selected':''}>Carteira (geral)</option></select>
     <select id="ck"><option value="ideias">Ideia</option><option value="pendencias">Pendente</option><option value="acertos">Acerto / bonificação</option><option value="andamento">Em andamento</option><option value="objetivos">Objetivo</option><option value="projetos">Projeto</option><option value="audios">Áudio</option></select>
     <select id="cp"><option value="1">Alta</option><option value="2" selected>Média</option><option value="3">Baixa</option></select>
     <button class="mic" id="cm" type="button" aria-label="Ditar">🎙️</button><button class="ok" id="cs">Salvar</button></div></div>
@@ -877,18 +938,26 @@ function drawIdeas(){
   sh.querySelector('.sh-x').onclick=closeSheet;
   $('#capb').onclick=()=>{capOpen=!capOpen;$('#cap').style.display=capOpen?'block':'none';if(capOpen)$('#ct').focus();};
   mic($('#cm'),$('#ct'));
+  let manual=icl!=='all', autoId=null;
+  const cc=$('#cc'), hint=$('#chint');
+  cc.onchange=()=>{ manual=true; autoId=null; cc.classList.remove('err'); hint.textContent=''; };
+  $('#ct').oninput=()=>{ if(manual) return; const f=findClient($('#ct').value);
+    if(f){ if(cc.value!==f.id){ cc.value=f.id; cc.classList.remove('err'); } autoId=f.id; hint.textContent='↳ conta reconhecida: '+(f.id==='hub'?'Carteira (geral)':byId(f.id).name); }
+    else if(autoId){ autoId=null; cc.value=''; hint.textContent=''; } };
   $('#cs').onclick=()=>{
-    const t=$('#ct').value.trim(); if(!t) return;
-    const cid=$('#cc').value,k=$('#ck').value;
+    let t=$('#ct').value.trim(); if(!t) return;
+    const cid=cc.value,k=$('#ck').value;
+    if(!cid){ cc.classList.add('err'); cc.focus(); hint.textContent='Escolha a conta antes de salvar.'; return; }
+    if(autoId===cid) t=stripLead(t,cid);
     L.extra[cid]=L.extra[cid]||{}; (L.extra[cid][k]=L.extra[cid][k]||[]).push({id:'x'+Date.now(),t,p:+$('#cp').value,d:new Date().toLocaleDateString('pt-BR')});
-    save(); $('#ct').value=''; fillIdeas(); refresh();
+    save(); $('#ct').value=''; hint.textContent=''; autoId=null; manual=icl!=='all'; cc.value=(icl!=='all'?icl:''); fillIdeas(); refresh();
   };
   $('#bx').onclick=()=>{
     try{const b=new Blob([JSON.stringify({v:1,L},null,1)],{type:'application/json'});const a=document.createElement('a');
       a.href=URL.createObjectURL(b);a.download='mapa-mental-backup-'+new Date().toISOString().slice(0,10)+'.json';document.body.appendChild(a);a.click();a.remove();}catch(e){}
   };
   $('#bi').onchange=e=>{const f=e.target.files[0]; if(!f)return; const r=new FileReader();
-    r.onload=()=>{try{const o=JSON.parse(r.result).L; if(o&&o.extra){L={done:Object.assign({},L.done,o.done),extra:o.extra};save();fillIdeas();refresh();}}catch(x){}};
+    r.onload=()=>{try{const o=JSON.parse(r.result).L; if(o&&o.extra){L={done:Object.assign({},L.done,o.done),extra:o.extra,ov:Object.assign({},L.ov,o.ov),del:Object.assign({},L.del,o.del)};save();fillIdeas();refresh();}}catch(x){}};
     r.readAsText(f);};
   $('#iqs').oninput=e=>{iq=e.target.value;fillIdeas();};
   $('#icl').onchange=e=>{icl=e.target.value;fillIdeas();};
@@ -901,7 +970,7 @@ function fillIdeas(){
     .sort((a,b)=>a.c.rank-b.c.rank);
   const G=[[1,'Prioridade alta','g1'],[2,'Prioridade média','g2'],[3,'Prioridade baixa','g3']];
   let h='';
-  const row=x=>`<div class="th ${x.done?'d':''}" data-c="${x.c.id}"><div class="mk" ${x.k==='feito'&&!x.reopen?'':`data-tg="${x.id}"`}>${x.done?'✔':''}</div><div style="flex:1;min-width:0"><div class="meta"><i class="cl">${esc(x.c.name)}</i><i class="ty">${TL[x.k]}</i>${x.d?`<i class="dt">${x.d}</i>`:''}</div><div class="tx">${esc(x.t)}</div></div>${x.extra?`<div class="act"><button data-ed="${x.id}" aria-label="Editar">✎</button><button data-dl="${x.id}" aria-label="Apagar">🗑</button></div>`:''}</div>`;
+  const row=x=>`<div class="th ${x.done?'d':''}" data-c="${x.c.id}"><div class="mk" ${x.k==='feito'&&!x.reopen?'':`data-tg="${x.id}"`}>${x.done?'✔':''}</div><div style="flex:1;min-width:0"><div class="meta"><i class="cl">${esc(x.c.name)}</i><i class="ty">${TL[x.k]}</i>${x.d?`<i class="dt">${x.d}</i>`:''}</div><div class="tx">${esc(x.t)}</div></div><div class="act"><button data-ed="${x.id}" aria-label="Editar">✎</button><button data-dl="${x.id}" aria-label="Apagar">🗑</button></div></div>`;
   G.forEach(([p,t,cl])=>{ const g=list.filter(x=>!x.done&&x.p===p); if(g.length) h+=`<div class="grp ${cl}">${t}<em>${g.length}</em></div>`+g.map(row).join(''); });
   const dn=list.filter(x=>x.done); if(dn.length) h+=`<div class="grp g0">✔ Concluído<em>${dn.length}</em></div>`+dn.map(row).join('');
   if(!list.length) h='<div class="empty" style="padding:24px 4px">Nenhum pensamento encontrado com esse filtro.</div>';
@@ -910,13 +979,12 @@ function fillIdeas(){
   const il=$('#il'), find=id=>allThoughts().find(x=>x.id===id);
   il.querySelectorAll('[data-c]').forEach(el=>el.onclick=()=>openSheet(el.dataset.c,true));
   il.querySelectorAll('[data-tg]').forEach(b=>b.onclick=e=>{e.stopPropagation();const id=b.dataset.tg; if(L.done[id])delete L.done[id]; else L.done[id]=new Date().toLocaleDateString('pt-BR'); save(); fillIdeas(); refresh();});
-  il.querySelectorAll('[data-dl]').forEach(b=>b.onclick=e=>{e.stopPropagation();const x=find(b.dataset.dl); if(!x)return;
-    L.extra[x.c.id][x.ok]=L.extra[x.c.id][x.ok].filter(i=>i.id!==x.id); delete L.done[x.id]; save(); fillIdeas(); refresh();});
+  il.querySelectorAll('[data-dl]').forEach(b=>b.onclick=e=>{e.stopPropagation(); armDel(b,()=>{ const x=find(b.dataset.dl); if(!x)return; delItem(x.c.id,x); fillIdeas(); refresh(); }); });
   il.querySelectorAll('[data-ed]').forEach(b=>b.onclick=e=>{e.stopPropagation();const x=find(b.dataset.ed); if(!x)return;
     const box=b.closest('.th').querySelector('.tx'); box.innerHTML=`<textarea class="et">${esc(x.t)}</textarea><div class="erow"><button class="sv">Salvar</button><button class="cn">Cancelar</button></div>`;
     box.onclick=ev=>ev.stopPropagation(); const ta=box.querySelector('textarea'); ta.focus();
     box.querySelector('.cn').onclick=()=>fillIdeas();
-    box.querySelector('.sv').onclick=()=>{const t=ta.value.trim(); if(!t)return; const it=L.extra[x.c.id][x.ok].find(i=>i.id===x.id); if(it)it.t=t; save(); fillIdeas();};
+    box.querySelector('.sv').onclick=()=>{const t=ta.value.trim(); if(!t)return; editItem(x.c.id,x,t); fillIdeas(); refresh();};
   });
 }
 $('#ib').onclick=openIdeas;
