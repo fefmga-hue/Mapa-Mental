@@ -490,7 +490,7 @@ html[data-theme=light] .seg{border-color:var(--line)}
    ===================================================================== */
 const UPDATED = "06/11/2026";
 /* registros feitos no app até este instante (ms) já foram incorporados ao mapa oficial e não aparecem em duplicidade */
-const ABSORBED = 0;
+const ABSORBED = 1794799452106;   // registros locais até 16/11/2026 já entraram no arquivo oficial
 const CLIENTS = [
  {id:"scherer", name:"Scherer", fat:3.5, c:"#5bc4f0", hist:{},
   kpi:{sellin:{v:-0.5}, sellout:{v:6.8}},
@@ -506,12 +506,12 @@ const CLIENTS = [
    {t:"Apresentação comercial (pptx) com vendas YTD por filial"},
    {t:"Dashboards executivos por filial (Itajaí, São José, Içara)"},
    {t:"Planilha de metas da campanha com bases de Santo Ângelo e São José ajustadas"}],
-  ideias:[], audios:[]},
+  ideias:[{t:"Lançada a campanha de vendas de novembro e dezembro dos itens MS 1267 e ACP434: incentivo de R$ 300 para o MS 1267 e de R$ 150 para o ACP434. A ação faz parte da campanha para desovar esses itens, que têm bastante estoque.",p:2,d:"09/11/2026"}], audios:[]},
  {id:"roni", name:"Roni", fat:1.3, c:"#7c8cff", hist:{},
   kpi:{sellin:{v:3.6}, sellout:{v:7.3}},
   medias:{per:"Jan–Out", sellin:{a26:1399800,a25:1350900}, sellout:{a26:2420700,a25:2256500}, tot:{si26:13998000,si25:13509000,so26:24207000,so25:22565000}},
   resumo:"Painel comercial de sellout Jan–Jun 2025 vs 2026, por filial e família, já entregue.",
-  objetivos:[], andamento:[], pendencias:[], projetos:[],
+  objetivos:[{t:"Mercado Livre: estruturar para 2027, com a Roni chegando a 1M já na plataforma.",p:2,d:"11/11/2026"}], andamento:[], pendencias:[], projetos:[],
   feito:[{t:"Painel comercial Roni Chaves (mesmo modelo do Giros): sellout Jan–Jun 2025 vs 2026 por filial e família"}],
   ideias:[], audios:[]},
  {id:"toli", name:"Toli", fat:1.2, c:"#ffc94a", hist:{},
@@ -525,13 +525,15 @@ const CLIENTS = [
    {t:"Levar uma nova proposta de ATX 280",p:2},
    {t:"Aumentar a venda de MS 1267",p:2}],
   andamento:[
-   {t:"Proposta de Introdução da Linha de Turbos: 40 turbinas + itens que a Giros comprou",p:1},
-   {t:"Projeto Alemanha 2027: acompanhar vendas 2027 mês a mês",p:2}],
+   {t:"Projeto Alemanha 2027: acompanhar vendas 2027 mês a mês",p:2},
+   {t:"Campanha de vendas nos itens MS 1267 e ACP434, com pagamento por peça vendida. Período: Nov e Dez 2026. R$ 300,00 para o MS 1267 e R$ 150,00 para o ACP434.",p:1,d:"09/11/2026"},
+   {t:"Incentivo de 1k para vendas de ACX 310",p:1,d:"16/11/2026"}],
   pendencias:[],
   projetos:[
    {t:"Projeto Viagem 2027 — Alemanha (Cenário 1: Jan–Jun · Cenário 2: Jan–Set; radiadores e turbos fora das metas)",p:1},
    {t:"Introdução de Turbos (referências: Padre Cícero, PMZ, Mestre das Vans, Giros)",p:2}],
   feito:[
+   {t:"Proposta de Introdução da Linha de Turbos: 40 turbinas + itens que a Giros comprou",d:"09/11/2026"},
    {t:"Painel comercial Toli (sellout por filial e família, YTD)"},
    {t:"Painel Lançamentos × Compras no formato Scherer"},
    {t:"Dashboard Projeto Alemanha 2027 com abertura animada"},
@@ -556,7 +558,7 @@ const CLIENTS = [
   kpi:{sellin:{v:-24.6}, sellout:{v:-8.7}},
   medias:{per:"Jan–Out", sellin:{a26:631100,a25:836600}, sellout:{a26:1487100,a25:1628100}, tot:{si26:6311000,si25:8366000,so26:14871000,so25:16281000}},
   resumo:"Painel comercial entregue (sellout Jan–Ago 2025 vs 2026 por filial).",
-  objetivos:[], andamento:[], pendencias:[], projetos:[],
+  objetivos:[{t:"Negociar turbos e fazer proposta para início de 2027",p:2,d:"13/11/2026"}], andamento:[], pendencias:[{t:"Pegar uma relação de retíficas e aplicadores para passar para o Pablo",p:2,d:"13/11/2026"},{t:"Mailing das bronzinas para envio à equipe de vendas",p:2,d:"13/11/2026"}], projetos:[],
   feito:[{t:"Painel comercial Auto Peças Meridional: sellout Jan–Ago 2025 vs 2026 por filial"}],
   ideias:[], audios:[]},
  {id:"bodipasa", name:"Bodipasa", fat:0.4, c:"#ff6f91", hist:{},
@@ -639,6 +641,7 @@ const byId = id => id==='hub'?HUB:CLIENTS.find(c=>c.id===id);
 /* estado local (só neste aparelho): itens marcados e itens extras */
 let L = {done:{}, extra:{}};
 try{ const s=localStorage.getItem('mme-v1'); if(s) L=Object.assign(L,JSON.parse(s)); }catch(e){}
+if((L.mig||0)<20261116){ delete L.done['toli.andamento.0']; L.mig=20261116; }   /* esse item foi movido para "Já feito" no arquivo oficial */
 const save = () => { try{ localStorage.setItem('mme-v1', JSON.stringify(L)); }catch(e){} };
 
 const CHK=['andamento','pendencias','acertos'];
